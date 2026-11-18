@@ -1,0 +1,2 @@
+# Optional dependency used only by --upload in scripts/create_cvat_duplicate_review.py
+requests>=2.31
