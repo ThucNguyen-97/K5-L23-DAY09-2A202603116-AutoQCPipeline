@@ -40,5 +40,79 @@ from ..model_cache import get_preds  # noqa: F401
 
 
 def run(ds, cfg, preds=None):
-    # TODO
-    raise NotImplementedError("check second_opinion chưa làm")
+    if preds is None:
+        preds = get_preds(ds, cfg, "checker")
+    sc = cfg.get("second_opinion", {})
+    conf_min = float(sc.get("conf", 0.25))
+    min_area = float(sc.get("min_area_px", 0))
+    fp_conf = float(sc.get("fp_conf", 0.1))
+    iou_missing = float(sc.get("iou_missing", 0.3))
+    iou_match = float(sc.get("iou_match", 0.5))
+    iou_loose = float(sc.get("iou_loose", 0.5))
+    out = []
+
+    for image_path in ds.image_files():
+        stem = image_path.stem
+        if stem not in preds or ds.read_label_lines(stem) is None:
+            continue
+        size = ds.image_size(stem)
+        if size is None:
+            continue
+        width, height = size
+
+        labels = []
+        for line_no, text in ds.read_label_lines(stem) or []:
+            try:
+                label = parse_yolo_line(text)
+            except ValueError:
+                continue
+            if 0 <= label[0] < len(ds.classes) and label[3] > 0 and label[4] > 0:
+                labels.append((line_no, label[0], label[1:]))
+
+        all_predictions = []
+        useful_predictions = []
+        for row in preds.get(stem, []):
+            try:
+                pcls, pconf, pcx, pcy, pw, ph = row
+                pcls, pconf = int(pcls), float(pconf)
+                pbox = (float(pcx), float(pcy), float(pw), float(ph))
+            except (TypeError, ValueError):
+                continue
+            all_predictions.append((pcls, pconf, pbox))
+            if pconf >= conf_min and pw * width * ph * height >= min_area:
+                useful_predictions.append((pcls, pconf, pbox))
+
+        for pcls, pconf, pbox in useful_predictions:
+            cands = [(line, cls, box, iou_xywh(pbox, box)) for line, cls, box in labels
+                     if iou_xywh(pbox, box) >= iou_missing]
+            if not cands:
+                out.append(Issue("second_opinion", WARN, "POSSIBLE_MISSING", stem,
+                                 "Model thấy vật thể nhưng nhãn không có box khớp",
+                                 extra={"conf": pconf}))
+                continue
+
+            same = [c for c in cands if c[1] == pcls]
+            if same:
+                best = max(same, key=lambda c: c[3])
+                if best[3] < iou_loose:
+                    out.append(Issue("second_opinion", WARN, "POSSIBLE_LOOSE_BOX", stem,
+                                     "Box nhãn cùng lớp nhưng có vẻ lỏng hoặc lệch",
+                                     extra={"iou": best[3], "conf": pconf}))
+                continue
+
+            other = max(cands, key=lambda c: c[3])
+            if other[3] >= iou_match:
+                out.append(Issue("second_opinion", WARN, "POSSIBLE_WRONG_CLASS", stem,
+                                 "Model và nhãn có vẻ gán khác lớp cho cùng một vật",
+                                 extra={"iou": other[3], "conf": pconf}))
+
+        for line_no, label_cls, label_box in labels:
+            matched = any(
+                iou_xywh(label_box, pbox) >= iou_missing
+                for _, pconf, pbox in all_predictions if pconf >= fp_conf
+            )
+            if not matched:
+                out.append(Issue("second_opinion", WARN, "POSSIBLE_FALSE_POS", stem,
+                                 "Box nhãn không khớp dự đoán nào của model",
+                                 line=line_no))
+    return out
