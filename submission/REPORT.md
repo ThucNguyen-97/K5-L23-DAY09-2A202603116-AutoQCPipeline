@@ -17,10 +17,10 @@ TODO(học viên): vì sao `05_review_queue.csv` xếp ảnh đầu hàng như v
 ## 3. Calibration (2 ngưỡng)
 | Tham số | Khởi đầu | Đã chọn | Precision / Recall (trước → sau) | Lý do (đánh đổi) |
 |---|---|---|---|---|
-| `duplicates.phash_dist` | 2 | TODO(học viên) | | |
-| `second_opinion.conf` | 0.25 | TODO(học viên) | | |
+| `duplicates.phash_dist` | 2 | 16 | DUP_IMAGE_NEAR: 1.00 / 0.50 / 0.67 → 1.00 / 0.83 / 0.91 | Chọn 16 vì vẫn không có FP và bắt được nhiều lỗi trùng gần hơn. |
+| `second_opinion.conf` | 0.25 | 0.6 | WRONG_CLASS: 0.56 / 0.83 / 0.67 → 0.62 / 0.83 / 0.71; MISSING: 0.50 / 1.00 / 0.67 → 0.57 / 1.00 / 0.73 | Tăng precision nhưng vẫn giữ recall cao cho lỗi thiếu nhãn và nhầm lớp. |
 
-TODO(học viên): **một chỗ calibration có thể đánh lừa bạn**, kèm bằng chứng từ dữ liệu của bạn (vd. mở xem vài cặp ảnh bị cho là trùng; số ảnh bị loại ở bước 1 có hợp lý không?).
+Calibration có thể đánh lừa vì bộ calib chỉ có 39 ảnh và lỗi chèn khá rõ ràng; ngưỡng 16 cho recall lỗi trùng gần tốt hơn nhưng vẫn cần mở xem các cặp ảnh bị cờ trên `raw` để tránh gộp nhầm hai ảnh khác nhau. Ngoài ra, `second_opinion` vẫn có precision thấp ở `POSSIBLE_FALSE_POS` (0.36), nên đây là cảnh báo cho người duyệt chứ không phải bằng chứng nhãn chắc chắn sai.
 
 ## 4. Cửa chặn và điều pipeline KHÔNG bắt được
 TODO(học viên): (a) chứng minh gate chặn đúng: chạy `python -m pipeline.run --budget 0 --reports work/rep_nb --export-dir work/exp_nb` (không có người duyệt nên ảnh thiếu file nhãn còn nguyên), chỉ ra kết luận **Rework**, mã thoát 20 và việc **không xuất** dataset. (Đừng sửa tay `work/run/ds`: pipeline dựng lại thư mục này từ raw mỗi lần chạy.) (b) ≥ 2 điểm mù có bằng chứng (box lỏng nhẹ, nhầm lớp mà model lớn cũng nhầm, ảnh trùng biến đổi mạnh…).
