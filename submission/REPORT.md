@@ -3,7 +3,7 @@
 > Mỗi ý trả lời bằng **số lấy từ `submission/reports/`**, kèm mẫu số. Cả báo cáo ~1–2 trang.
 
 ## 1. Kết luận trước
-Pipeline kết luận **Hold**. Có 224 ảnh đầu vào, 203 ảnh được nhận vào pipeline và bản export `clean_v1` có 203 ảnh (bản nháp để tiếp tục xử lý). Sau mô phỏng review 80 ảnh, còn 38/203 ảnh có cảnh báo, tương đương 18.72%, cao hơn ngưỡng Hold 10.00%; không còn lỗi bắt buộc (`n_errors=0`).
+Pipeline kết luận **Hold**. Có 224 ảnh đầu vào; 21 ảnh bị loại ngay ở bước intake, còn 203 ảnh được nhận vào pipeline và bản export `clean_v1` có 203 ảnh (bản nháp để tiếp tục xử lý). 21 ảnh bị loại gồm: 3 ảnh không đạt kích thước tối thiểu (`BAD_SIZE`), 2 ảnh hỏng không đọc được (`CORRUPT_IMAGE`), 8 ảnh trùng byte (`DUP_IMAGE_EXACT`), 3 ảnh trùng gần (`DUP_IMAGE_NEAR`) và 5 ảnh trùng tập test/validation (`LEAK_TEST`). Sau mô phỏng review 80 ảnh, còn 38/203 ảnh có cảnh báo, tương đương 18.72%, cao hơn ngưỡng Release 10.00%; không còn lỗi bắt buộc (`n_errors=0`), nên gate kết luận Hold.
 
 ## 2. Lỗi và phân việc
 Lấy từ `02_error_list_v1` (gom theo mã lỗi). Cột "ai sửa": **máy** (autofix) hay **người** (hàng đợi); chỉ ghi những mã có mặt trong lô của bạn.
