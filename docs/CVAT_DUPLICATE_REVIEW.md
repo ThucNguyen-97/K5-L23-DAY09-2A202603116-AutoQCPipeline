@@ -32,12 +32,13 @@ work/cvat_duplicate_review/
 
 ## Tạo task qua CVAT API
 
-Tạo token trong CVAT, sau đó đặt biến môi trường trong phiên PowerShell hiện
-tại. Token không commit vào repo:
+Đặt thông tin đăng nhập trong phiên PowerShell hiện tại. Các biến này không
+được commit vào repo:
 
 ```powershell
 $env:CVAT_URL="http://localhost:8080"
-$env:CVAT_TOKEN="<token-cua-anh>"
+$env:CVAT_USERNAME="admin"
+$env:CVAT_PASSWORD="<mat-khau-local>"
 python scripts/create_cvat_duplicate_review.py `
   --src data/raw `
   --out work/cvat_duplicate_review `

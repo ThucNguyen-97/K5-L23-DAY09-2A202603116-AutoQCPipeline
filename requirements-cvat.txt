@@ -1,2 +1,2 @@
-# Optional dependency used only by --upload in scripts/create_cvat_duplicate_review.py
-requests>=2.31
+# Optional dependency used by --upload in scripts/create_cvat_duplicate_review.py
+cvat-sdk>=2.82,<2.83

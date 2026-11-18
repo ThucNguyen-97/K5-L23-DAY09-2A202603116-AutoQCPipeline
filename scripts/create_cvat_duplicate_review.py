@@ -66,6 +66,10 @@ def build_bundle(src: str | Path, out: str | Path, config: str | Path | None = N
     out_dir = ROOT / out
     image_dir = out_dir / "images"
     image_dir.mkdir(parents=True, exist_ok=True)
+    # Remove panels from an earlier run so a stricter threshold cannot leave
+    # stale images that would be uploaded in addition to the new manifest.
+    for stale in image_dir.glob("*.jpg"):
+        stale.unlink()
 
     issues = duplicate_check(ds, cfg)
     candidates = [i for i in issues if i.code in {"DUP_IMAGE_EXACT", "DUP_IMAGE_NEAR"} and i.extra.get("of")]
@@ -110,47 +114,43 @@ def build_bundle(src: str | Path, out: str | Path, config: str | Path | None = N
     return {"out": str(out_dir), "pairs": len(rows), "spec": spec}
 
 
-def upload_to_cvat(bundle: dict, cvat_url: str, token: str, task_name: str | None = None) -> int:
+def upload_to_cvat(
+    bundle: dict,
+    cvat_url: str,
+    token: str | None = None,
+    task_name: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
+) -> int:
     try:
-        import requests
+        from cvat_sdk import make_client
     except ImportError as exc:
-        raise RuntimeError("Cần cài requests để upload: python -m pip install requests") from exc
+        raise RuntimeError("Cần cài cvat-sdk để upload: python -m pip install -r requirements-cvat.txt") from exc
 
     out_dir = Path(bundle["out"])
-    labels = [{"name": x["name"], "type": x["type"], "attributes": []} for x in REVIEW_LABELS]
-    headers = {"Authorization": f"Token {token}"}
-    base = cvat_url.rstrip("/")
-    response = requests.post(
-        f"{base}/api/tasks",
-        headers=headers,
-        json={"name": task_name or bundle["spec"]["name"], "labels": labels},
-        timeout=60,
+    if username and password:
+        client = make_client(cvat_url.rstrip("/"), credentials=(username, password))
+        client.login((username, password))
+    elif token:
+        raise RuntimeError("CVAT_TOKEN là personal access token; với local CVAT nên dùng CVAT_USERNAME/CVAT_PASSWORD")
+    else:
+        raise RuntimeError("Thiếu thông tin xác thực CVAT")
+    spec = {
+        "name": task_name or bundle["spec"]["name"],
+        "labels": [{"name": x["name"], "type": x["type"], "attributes": []} for x in REVIEW_LABELS],
+    }
+    resources = sorted((out_dir / "images").glob("*.jpg"))
+    if len(resources) != bundle["pairs"]:
+        raise RuntimeError(f"Bundle không nhất quán: manifest={bundle['pairs']}, images={len(resources)}")
+    task = client.tasks.create_from_data(
+        spec,
+        resources=resources,
+        data_params={"image_quality": 90},
+        status_check_period=1,
     )
-    response.raise_for_status()
-    task_id = response.json()["id"]
-
-    files = []
-    handles = []
-    try:
-        for path in sorted((out_dir / "images").glob("*.jpg")):
-            handle = path.open("rb")
-            handles.append(handle)
-            files.append(("client_files[]", (path.name, handle, "image/jpeg")))
-        data_response = requests.post(
-            f"{base}/api/tasks/{task_id}/data",
-            headers=headers,
-            files=files,
-            data={"image_quality": 90, "sorting_method": "lexicographical"},
-            timeout=120,
-        )
-        data_response.raise_for_status()
-    except Exception:
-        requests.delete(f"{base}/api/tasks/{task_id}", headers=headers, timeout=30)
-        raise
-    finally:
-        for handle in handles:
-            handle.close()
-    return int(task_id)
+    if task.size != bundle["pairs"]:
+        raise RuntimeError(f"CVAT tạo task {task.id} nhưng số frame={task.size}, mong đợi {bundle['pairs']}")
+    return int(task.id)
 
 
 def main(argv=None) -> int:
@@ -161,14 +161,16 @@ def main(argv=None) -> int:
     ap.add_argument("--upload", action="store_true", help="tạo task trên CVAT sau khi tạo bundle")
     ap.add_argument("--cvat-url", default=os.environ.get("CVAT_URL"))
     ap.add_argument("--token", default=os.environ.get("CVAT_TOKEN"))
+    ap.add_argument("--username", default=os.environ.get("CVAT_USERNAME"))
+    ap.add_argument("--password", default=os.environ.get("CVAT_PASSWORD"))
     ap.add_argument("--task-name")
     args = ap.parse_args(argv)
     bundle = build_bundle(args.src, args.out, args.config)
     print(f"Đã tạo {bundle['pairs']} cặp review tại {bundle['out']}")
     if args.upload:
-        if not args.cvat_url or not args.token:
-            ap.error("--upload cần CVAT_URL/--cvat-url và CVAT_TOKEN/--token")
-        task_id = upload_to_cvat(bundle, args.cvat_url, args.token, args.task_name)
+        if not args.cvat_url or not ((args.username and args.password) or args.token):
+            ap.error("--upload cần CVAT_URL và CVAT_USERNAME/CVAT_PASSWORD hoặc CVAT_TOKEN")
+        task_id = upload_to_cvat(bundle, args.cvat_url, args.token, args.task_name, args.username, args.password)
         print(f"Đã tạo CVAT task: {task_id}")
     return 0
 
