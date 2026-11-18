@@ -1,0 +1,18 @@
+{
+  "verdict": {
+    "decision": "Hold",
+    "n_errors": 0,
+    "n_warn_images": 38,
+    "n_images": 203,
+    "warn_ratio": 0.1872,
+    "reasons": [
+      "Có 38/203 ảnh còn cảnh báo (18.72%), đạt ngưỡng Hold 10.00%."
+    ]
+  },
+  "reviewed": 80,
+  "budget": 80,
+  "seconds": 4.4,
+  "exported": "D:\\AI thực chiến\\day9\\K5-L23-DAY09-2A202603116-AutoQCPipeline\\submission\\export\\clean_v1",
+  "config_sha1": "82cd40be4c2f3860a7165a66dd871b568f45296a",
+  "review_sim_sha1": "7988ca22827f780a7043a2300490e679a1697154"
+}
