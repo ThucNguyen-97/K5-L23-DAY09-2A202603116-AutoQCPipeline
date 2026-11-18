@@ -38,7 +38,16 @@ Calibration có thể đánh lừa vì bộ calib chỉ có 39 ảnh và lỗi c
 Gate được kiểm chứng bằng `python -m pipeline.run --budget 0 --reports work/rep_nb --export-dir work/exp_nb`: kết luận **Rework**, mã thoát **20**, còn 6 lỗi bắt buộc và `exported=null`, tức không xuất dataset. Hai điểm mù có bằng chứng là cảnh báo `POSSIBLE_LOOSE_BOX` vẫn còn nhiều sau review (20 dòng), và `second_opinion` vẫn để lại `POSSIBLE_FALSE_POS` (21 dòng), vì dự đoán model không phải ground truth. Ngoài ra, phash ở khoảng cách 16 tạo false positive trên hai cặp cảnh khác nhau nên đã chọn ngưỡng bảo thủ 6.
 
 ## 5. Train: raw vs clean (tùy chọn, chấm riêng)
-Chưa train: phần train trên máy cá nhân chưa thực hiện trong Part 3; vì vậy chưa có kết quả raw-vs-clean để kết luận mAP50. Đây là phần điểm tùy chọn 15 điểm, không ảnh hưởng pipeline QC lõi.
+Đã train công bằng trên Colab: cùng `yolo26n.pt`, 20 epoch, batch 16, `imgsz=640`, cùng tập val/test, cùng `config_sha1` và hai seed `0,1`. Raw có 224 ảnh đầu vào; clean có 203 ảnh theo manifest.
+
+| Biến thể | mAP50 (TB ± SD) | mAP50-95 (TB ± SD) | Precision | Recall |
+|---|---:|---:|---:|---:|
+| raw | 0.726 ± 0.000 | 0.512 ± 0.004 | 0.764 ± 0.061 | 0.649 ± 0.028 |
+| clean | 0.699 ± 0.025 | 0.486 ± 0.013 | 0.796 ± 0.050 | 0.596 ± 0.049 |
+
+Chênh lệch mAP50 `clean - raw = -0.027`, nhỏ hơn độ lệch giữa seed của clean (SD 0.025) nhưng lớn hơn SD của raw (0.000). Vì chỉ có 2 seed và clean còn cảnh báo, chưa thể kết luận việc làm sạch làm chất lượng model tốt hơn; kết quả này chỉ cho thấy clean tăng precision trung bình nhưng giảm recall và mAP trên tập test ở thí nghiệm hiện tại. Theo lớp, clean gần như không đổi ở car/person/bus, còn truck giảm khoảng 0.113 AP50 (0.648 → 0.536).
+
+Hai giả thuyết cần kiểm tra thêm: (1) raw có 5 ảnh trùng test/val (`LEAK_TEST`), có thể làm điểm raw bị thổi phồng; kiểm bằng hash ảnh raw với `data/test` và `data/gold_val`; (2) clean loại ảnh trùng, lỗi kích thước/hỏng và sửa nhãn, đồng thời vẫn còn cảnh báo thiếu box/box lỏng, nên giảm recall hoặc làm mất các mẫu truck; kiểm bằng thống kê ảnh/box theo lớp và review các ảnh truck bị loại trong `01_intake.csv`, `02_error_list_v1.csv`.
 
 ## 6. Quyết định và ghi chú AI
 Quyết định cuối: **Hold**. Để thành Release cần review/sửa các cảnh báo còn lại, chạy lại pipeline và đưa tỷ lệ ảnh cảnh báo xuống không quá 10%; nếu phát sinh lỗi bắt buộc thì phải quay về Rework.
